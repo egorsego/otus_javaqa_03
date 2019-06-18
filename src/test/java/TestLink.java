@@ -8,6 +8,8 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -19,8 +21,11 @@ public class TestLink {
     private static String username = "user";
     private static String password = "bitnami";
     private static final String HOST = "http://localhost";
-    private static String testSuiteName = "";
-    private static String currentTestCaseName = "";
+    private static String projectName;
+    private static String testPlanName;
+    private static String buildName;
+    private static String testSuiteName;
+    private static String testCaseName;
 
     private static WebDriver driver;
     private static final long TIMEOUT = 3;
@@ -35,20 +40,11 @@ public class TestLink {
         driver.navigate().to(HOST);
 
         login(username, password);
-        //openNavigationSection("Test Specification");
-        //openTestSuiteCreationForm();
-    }
-
-    @Before
-    public void testSetup(){
-        //createTestSuite();
-        //selectTestSuite(testSuiteName);
     }
 
     @After
     public void returnToStartingPoint(){
-        //selectTestSpecificationSectionFromTitleBar();
-        //openTestSuiteCreationForm();
+        openHomepage();
     }
 
     @AfterClass
@@ -108,23 +104,23 @@ public class TestLink {
 
         WebElement publicColumn = projectsTable.findElement(By.xpath("./tr/td[8]/img"));
         Assert.assertTrue(publicColumn.getAttribute("title").contains("Public"));
-    }
-
-    /*
-    @Test
-    public void newlyCreatedTestSuiteDoesNotHaveAnyTestCases(){
-        int numberOfTestCasesInSuite = getNumberOfTestCasesWithinTestSuite(testSuiteName);
-        Assert.assertEquals(0, numberOfTestCasesInSuite);
+        driver.switchTo().defaultContent();
     }
 
     @Test
-    public void createdTestCaseAppearsInTreeAsATestSuiteChild(){
-        openTestCaseCreationForm();
-        createBasicTestCase();
-        int numberOfTestCasesInSuite = getNumberOfTestCasesWithinTestSuite(testSuiteName);
-        Assert.assertEquals(1, numberOfTestCasesInSuite);
+    public void headerColorRepresentsTestExecutionResult(){
+        createBasicProject();
+        selectTestProjectInDropdown(projectName);
+        createBasicTestPlan();
+        createBasicBuild();
+        createTestSuite();
+        createTestCaseWithinSuite(testSuiteName);
+        addTestCaseToTestPlan();
+        //executeTest(testSuiteName, testCaseName, TestCaseOutcome.NOT_RUN);
+        //executeTest(testSuiteName, testCaseName, TestCaseOutcome.PASSED);
+        executeTest(testSuiteName, testCaseName, TestCaseOutcome.FAILED);
+        return;
     }
-    */
 
     private static void login(String username, String password) {
         driver.findElement(By.cssSelector("#tl_login")).sendKeys(username);
@@ -140,13 +136,6 @@ public class TestLink {
         driver.switchTo().defaultContent();
     }
 
-    private static void selectTestSpecificationSectionFromTitleBar() {
-        switchContextToTitleBar();
-
-        driver.findElement(By.cssSelector("img[title='Test Specification']")).click();
-        driver.switchTo().defaultContent();
-    }
-
     private static void openTestSuiteCreationForm(){
         showAvailableActions();
         driver.findElement(By.cssSelector("#new_testsuite")).click();
@@ -159,6 +148,10 @@ public class TestLink {
     }
 
     private static void createTestSuite(){
+        openHomepage();
+        openNavigationSection("Test Specification");
+        openTestSuiteCreationForm();
+
         switchContextToWorkFrame();
 
         testSuiteName = "TS_" + getTimeStamp();
@@ -171,9 +164,21 @@ public class TestLink {
     private static void selectTestSuite(String tsName){
         switchContextToTreeFrame();
 
-        WebElement tsTree = driver.findElement(By.xpath("//div[@id='extdd-1']//following-sibling::ul"));
         String tsXPath = String.format("//span[contains(text(), '%s')]", tsName);
-        tsTree.findElement(By.xpath(tsXPath)).click();
+        WebElement testSuite = driver.findElement(By.xpath(tsXPath));
+        Actions actions = new Actions(driver);
+        actions.doubleClick(testSuite).perform();
+        driver.switchTo().defaultContent();
+    }
+
+    private static void selectTestCaseWithinTestSuite(String testSuite, String testCase){
+        selectTestSuite(testSuite);
+
+        switchContextToTreeFrame();
+        String testCaseXPath = String.format("//span[contains(text(), '%s')]", testCase);
+        WebElement tc = driver.findElement(By.xpath(testCaseXPath));
+        Actions actions = new Actions(driver);
+        actions.doubleClick(tc).perform();
         driver.switchTo().defaultContent();
     }
 
@@ -184,30 +189,118 @@ public class TestLink {
         driver.switchTo().defaultContent();
     }
 
-    private static void createBasicTestCase(){
+    private static void createTestCaseWithinSuite(String suiteName){
+        openHomepage();
+        openNavigationSection("Test Specification");
+        selectTestSuite(suiteName);
+        openTestCaseCreationForm();
+
         switchContextToWorkFrame();
 
         WebElement inputField = driver.findElement(By.cssSelector("#testcase_name"));
         inputField.click();
-        currentTestCaseName = "TestCase_" + getTimeStamp();
-        inputField.sendKeys(currentTestCaseName);
+        testCaseName = "TestCase_" + getTimeStamp();
+        inputField.sendKeys(testCaseName);
         driver.findElement(By.xpath("//div[@class='groupBtn']//input[@id='do_create_button']")).click();
         driver.switchTo().defaultContent();
     }
 
-    private static int getNumberOfTestCasesWithinTestSuite(String tsName){
-        switchContextToTreeFrame();
+    private static void createBasicProject(){
+        openHomepage();
+        openNavigationSection("Test Project Management");
 
-        WebElement tsTree = driver.findElement(By.xpath("//div[@id='extdd-1']//following-sibling::ul"));
-        String tsXPath = String.format("//span[contains(text(), '%s')]", tsName);
-        WebElement testSuite = tsTree.findElement(By.xpath(tsXPath));
-        Actions actions = new Actions(driver);
-        actions.doubleClick(testSuite).perform();
+        switchContextToMainFrame();
 
-        String listOfTestCasesXPath = String.format("//span[contains(text(), '%s')]/ancestor::div[contains(@class, 'x-tree-node')]/../ul/li", tsName);
-        int numberOfTestCasesWithinTestSuite = driver.findElements(By.xpath(listOfTestCasesXPath)).size();
+        driver.findElement(By.cssSelector("#create")).click();
+        projectName = "Project_" + getTimeStamp();
+        driver.findElement(By.cssSelector("input[name='tprojectName']")).sendKeys(projectName);
+        String casePrefix = "P_" + getTimeStamp();
+        driver.findElement(By.cssSelector("input[name='tcasePrefix']")).sendKeys(casePrefix);
+        driver.findElement(By.cssSelector("input[value='Create']")).click();
         driver.switchTo().defaultContent();
-        return numberOfTestCasesWithinTestSuite;
+    }
+
+    private static void createBasicTestPlan(){
+        openHomepage();
+        openNavigationSection("Test Plan Management");
+
+        switchContextToMainFrame();
+
+        driver.findElement(By.cssSelector("input[name='create_testplan']")).click();
+        testPlanName = "TestPlan_" + getTimeStamp();
+        driver.findElement(By.cssSelector("input[name='testplan_name']")).sendKeys(testPlanName);
+        driver.findElement(By.cssSelector("input[name='active']")).click();
+        driver.findElement(By.cssSelector("input[name='is_public']")).click();
+        driver.findElement(By.cssSelector("input[name='do_create']")).click();
+        driver.switchTo().defaultContent();
+    }
+
+    private static void createBasicBuild(){
+        openHomepage();
+        openNavigationSection("Builds / Releases");
+
+        switchContextToMainFrame();
+
+        driver.findElement(By.cssSelector("input[name='create_build_bottom']")).click();
+        buildName = "Build" + getTimeStamp();
+        driver.findElement(By.cssSelector("#build_name")).sendKeys(buildName);
+        driver.findElement(By.cssSelector("input[name='do_create']")).click();
+        driver.switchTo().defaultContent();
+    }
+
+    private static void openHomepage(){
+        driver.get(HOST);
+    }
+
+    private static void selectTestProjectInDropdown(String testProjectName){
+        openHomepage();
+
+        switchContextToTitleBar();
+
+        WebElement dropdown = driver.findElement(By.cssSelector("select[name='testproject']"));
+        dropdown.click();
+        String dropdownItemLocator = "option[title*='" + projectName + "']";
+        WebElement dropdownItem = dropdown.findElement(By.cssSelector(dropdownItemLocator));
+        WebDriverWait wait = new WebDriverWait(driver, 3);
+        wait.until(ExpectedConditions.elementToBeClickable(dropdownItem));
+        dropdownItem.click();
+        driver.switchTo().defaultContent();
+    }
+
+    private static void addTestCaseToTestPlan(){
+        openHomepage();
+        openNavigationSection("Add / Remove Test Cases");
+        selectTestSuite(testSuiteName);
+
+        switchContextToWorkFrame();
+
+        String testCaseCheckboxXPath = String.format("//tr/td[2][span[contains(text(), '%s')]]/preceding-sibling::td", testCaseName);
+        driver.findElement(By.xpath(testCaseCheckboxXPath)).click();
+        driver.findElement(By.cssSelector("input[name='doAddRemove']")).click();
+        driver.switchTo().defaultContent();
+    }
+
+    private static void executeTest(String testSuite, String testCase, TestCaseOutcome outcome){
+        openHomepage();
+        openNavigationSection("Execute Tests");
+        selectTestCaseWithinTestSuite(testSuite, testCase);
+
+        switch (outcome){
+            case PASSED:
+                switchContextToWorkFrame();
+                driver.findElement(By.cssSelector("img[src*='test_status_passed.png']")).click();
+                driver.findElement(By.cssSelector("img[src*='test_status_passed.png']")).click();
+                driver.switchTo().defaultContent();
+                break;
+            case FAILED:
+                switchContextToWorkFrame();
+                driver.findElement(By.cssSelector("img[src*='test_status_failed.png']")).click();
+                driver.findElement(By.cssSelector("img[src*='test_status_failed.png']")).click();
+                driver.switchTo().defaultContent();
+                break;
+            default:
+                break;
+        }
     }
 
     private static String getTimeStamp(){

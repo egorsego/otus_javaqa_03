@@ -17,7 +17,6 @@ import java.util.concurrent.TimeUnit;
 
 public class TestLink {
     private static final Logger logger = LogManager.getLogger(TestLink.class);
-
     private static String username = "user";
     private static String password = "bitnami";
     private static final String HOST = "http://localhost";
@@ -28,7 +27,7 @@ public class TestLink {
     private static String testCaseName;
 
     private static WebDriver driver;
-    private static final long TIMEOUT = 3;
+    private static final long TIMEOUT = 2;
 
     @BeforeClass
     public static void generalSetup(){
@@ -37,8 +36,8 @@ public class TestLink {
         driver = new ChromeDriver();
         driver.manage().timeouts().implicitlyWait(TIMEOUT, TimeUnit.SECONDS);
         driver.manage().window().maximize();
-        driver.navigate().to(HOST);
 
+        driver.navigate().to(HOST);
         login(username, password);
     }
 
@@ -108,7 +107,7 @@ public class TestLink {
     }
 
     @Test
-    public void headerColorRepresentsTestExecutionResult(){
+    public void testExecutionResultIsRepresentedWithBackgroundColor(){
         createBasicProject();
         selectTestProjectInDropdown(projectName);
         createBasicTestPlan();
@@ -116,10 +115,41 @@ public class TestLink {
         createTestSuite();
         createTestCaseWithinSuite(testSuiteName);
         addTestCaseToTestPlan();
-        //executeTest(testSuiteName, testCaseName, TestCaseOutcome.NOT_RUN);
-        //executeTest(testSuiteName, testCaseName, TestCaseOutcome.PASSED);
+
+        executeTest(testSuiteName, testCaseName, TestCaseOutcome.NOT_RUN);
+        switchContextToWorkFrame();
+        String rgbaColorBackground = driver.findElement(By.cssSelector("div.not_run")).getCssValue("background-color");
+        String hexColorBackground = convertRGBtoHEX(rgbaColorBackground);
+        Assert.assertEquals("#000000", hexColorBackground);
+        driver.switchTo().defaultContent();
+
+        executeTest(testSuiteName, testCaseName, TestCaseOutcome.PASSED);
+        switchContextToWorkFrame();
+        rgbaColorBackground = driver.findElement(By.cssSelector("div.passed")).getCssValue("background-color");
+        hexColorBackground = convertRGBtoHEX(rgbaColorBackground);
+        Assert.assertEquals("#006400", hexColorBackground);
+        driver.switchTo().defaultContent();
+
+        switchContextToTreeFrame();
+        String testCaseInTreeXPath = String.format("//span[contains(text(), '%s')]", testCaseName);
+        rgbaColorBackground = driver.findElement(By.xpath(testCaseInTreeXPath)).getCssValue("background-color");
+        hexColorBackground = convertRGBtoHEX(rgbaColorBackground);
+        Assert.assertEquals("#D5EED5", hexColorBackground);
+        driver.switchTo().defaultContent();
+
         executeTest(testSuiteName, testCaseName, TestCaseOutcome.FAILED);
-        return;
+        switchContextToWorkFrame();
+        rgbaColorBackground = driver.findElement(By.cssSelector("div.failed")).getCssValue("background-color");
+        hexColorBackground = convertRGBtoHEX(rgbaColorBackground);
+        Assert.assertEquals("#B22222", hexColorBackground);
+        driver.switchTo().defaultContent();
+
+        switchContextToTreeFrame();
+        testCaseInTreeXPath = String.format("//span[contains(text(), '%s')]", testCaseName);
+        rgbaColorBackground = driver.findElement(By.xpath(testCaseInTreeXPath)).getCssValue("background-color");
+        hexColorBackground = convertRGBtoHEX(rgbaColorBackground);
+        Assert.assertEquals("#EED5D5", hexColorBackground);
+        driver.switchTo().defaultContent();
     }
 
     private static void login(String username, String password) {
@@ -164,10 +194,13 @@ public class TestLink {
     private static void selectTestSuite(String tsName){
         switchContextToTreeFrame();
 
-        String tsXPath = String.format("//span[contains(text(), '%s')]", tsName);
-        WebElement testSuite = driver.findElement(By.xpath(tsXPath));
-        Actions actions = new Actions(driver);
-        actions.doubleClick(testSuite).perform();
+        String isTestSuiteExpandedMarker = "//span[contains(text(), '" + testSuiteName + "')]/ancestor::div[contains(@class, 'collapsed')]";
+        if(driver.findElements(By.xpath(isTestSuiteExpandedMarker)).size() > 0){
+            String tsXPath = String.format("//span[contains(text(), '%s')]", tsName);
+            WebElement testSuite = driver.findElement(By.xpath(tsXPath));
+            Actions actions = new Actions(driver);
+            actions.doubleClick(testSuite).perform();
+        }
         driver.switchTo().defaultContent();
     }
 
@@ -202,6 +235,7 @@ public class TestLink {
         testCaseName = "TestCase_" + getTimeStamp();
         inputField.sendKeys(testCaseName);
         driver.findElement(By.xpath("//div[@class='groupBtn']//input[@id='do_create_button']")).click();
+        driver.findElement(By.cssSelector("input[name='create_step']")).click();
         driver.switchTo().defaultContent();
     }
 
@@ -259,7 +293,7 @@ public class TestLink {
 
         WebElement dropdown = driver.findElement(By.cssSelector("select[name='testproject']"));
         dropdown.click();
-        String dropdownItemLocator = "option[title*='" + projectName + "']";
+        String dropdownItemLocator = "option[title*='" + testProjectName + "']";
         WebElement dropdownItem = dropdown.findElement(By.cssSelector(dropdownItemLocator));
         WebDriverWait wait = new WebDriverWait(driver, 3);
         wait.until(ExpectedConditions.elementToBeClickable(dropdownItem));
@@ -331,5 +365,14 @@ public class TestLink {
 
         WebElement treeFrame =  driver.findElement(By.cssSelector("frame[name='treeframe']"));
         driver.switchTo().frame(treeFrame);
+    }
+
+    private static String convertRGBtoHEX(String rawRGB){
+        String[] rgbComponentsArray = rawRGB.replace("rgba(", "").replace(")", "").split(",");
+        int redComponent = Integer.parseInt(rgbComponentsArray[0].trim());
+        int greenComponent = Integer.parseInt(rgbComponentsArray[1].trim());
+        int blueComponent = Integer.parseInt(rgbComponentsArray[2].trim());
+
+        return String.format("#%02x%02x%02x", redComponent, greenComponent, blueComponent).toUpperCase();
     }
 }
